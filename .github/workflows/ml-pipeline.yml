@@ -22,13 +22,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         
-    - name: Run tests
-      run: |
-        pytest ci_cd_pipeline.py -v
-        
     - name: Train model
       run: |
         python train.py
+        
+    - name: Run tests
+      run: |
+        pytest ci_cd_pipeline.py -v
         
     - name: Generate visualizations
       run: |
