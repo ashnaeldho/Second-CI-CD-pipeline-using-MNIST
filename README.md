@@ -1,5 +1,7 @@
 # MNIST CNN Training Pipeline
 
+![Build Status](https://github.com/ashnaeldho/Second-CI-CD-pipeline-using-MNIST/actions/workflows/ml-pipeline.yml/badge.svg)
+
 This project implements a CNN model for MNIST digit classification with data augmentation, training, and visualization capabilities.
 
 ## Features
