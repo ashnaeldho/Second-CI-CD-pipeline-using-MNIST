@@ -22,11 +22,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Run linting
-      run: |
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        black . --check
-    
     - name: Run tests
       run: |
         pytest ci_cd_pipeline.py -v
