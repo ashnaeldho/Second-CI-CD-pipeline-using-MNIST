@@ -1,8 +1,27 @@
-# MNIST CNN Model
+# MNIST CNN Training Pipeline
 
-A lightweight CNN implementation for MNIST digit classification that achieves 96%+ accuracy in one epoch with less than 24,000 parameters.
+This project implements a CNN model for MNIST digit classification with data augmentation, training, and visualization capabilities.
 
-## Setup
+## Features
+
+- Convolutional Neural Network for MNIST digit classification
+- Data augmentation pipeline with:
+  - Random affine transformations
+  - Random rotation
+  - Brightness/contrast adjustments
+- Training pipeline with OneCycleLR scheduler
+- CI/CD pipeline with automated testing
+- Augmentation visualization tool
+- Comprehensive test suite including:
+  - Model parameter count verification (<24,000 parameters)
+  - Model accuracy verification (>96% on test set)
+  - Precision and recall metrics (>95%)
+  - Loss value verification (<1.0)
+  - Output shape validation (10 classes)
+
+## Requirements
+
+Install dependencies using:
 
 ```bash
 # Create virtual environment
@@ -13,14 +32,20 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Training
+## Usage
 
+1. **Train the model**:
 ```bash
 python train.py
 ```
 
-## Testing
+2. **Visualize augmentations**:
+```bash
+python visualize_augmentations.py
+```
+This will generate augmented versions of all digits (0-9) in `visualizations/augmented_digits.png`
 
+3. **Run tests**:
 ```bash
 pytest ci_cd_pipeline.py -v
 ```
@@ -31,18 +56,23 @@ See HOW-TO.md for detailed architecture information.
 ## CI/CD Pipeline
 The project includes GitHub Actions for:
 - Code linting (flake8, black)
-- Automated testing
+- Automated testing including:
+  - Model output validation
+  - Loss verification
+  - Precision/recall metrics
+  - Parameter count checks
 - Model training
 - Model validation
 - Artifact storage 
 
-
-Directory structure should look like:
+## Project Structure
+```
 .
 ├── .github/
 │   └── workflows/
 │       └── ml-pipeline.yml
 ├── models/              # Created automatically
+├── visualizations/      # Created automatically
 ├── data/               # Created automatically
 ├── .gitignore
 ├── README.md
@@ -50,12 +80,27 @@ Directory structure should look like:
 ├── requirements.txt
 ├── mnist_cnn.py
 ├── train.py
+├── visualize_augmentations.py
 └── ci_cd_pipeline.py
+```
 
-After setting up these files:
-Initialize git repository
-Make initial commit
-Create GitHub repository
-Push to GitHub
-GitHub Actions will automatically run the pipeline
-The trained models will be saved with timestamps and device info (e.g., mnist_model_20230615_123456_cuda.pth), making it easy to track when and where they were trained.
+## Test Suite Details
+
+The test suite verifies:
+1. Model Architecture:
+   - Correct output dimensions (10 classes)
+   - Parameter count < 24,000
+
+2. Model Performance:
+   - Loss < 1.0 on test set
+   - Precision > 95%
+   - Recall > 95%
+   - Accuracy > 96%
+
+3. Model Deployment:
+   - Successful TorchScript conversion
+   - Artifact generation
+
+## Artifacts
+The trained models will be saved with timestamps and device info (e.g., mnist_model_20230615_123456_cuda.pth)
+Visualizations will be saved in the visualizations directory

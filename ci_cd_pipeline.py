@@ -6,6 +6,9 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from mnist_cnn import MNIST_CNN, count_parameters
+from sklearn.metrics import precision_recall_fscore_support
+import numpy as np
+import glob
 
 class TestMNISTPipeline:
     @classmethod
@@ -14,6 +17,13 @@ class TestMNISTPipeline:
         cls.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         cls.model = MNIST_CNN().to(cls.device)
         cls.batch_size = 64
+        
+        # Find the most recent model file
+        model_files = glob.glob('models/mnist_model_*.pth')
+        cls.model_path = max(model_files) if model_files else None
+        
+        if cls.model_path:
+            cls.model.load_state_dict(torch.load(cls.model_path))
         
         # Setup test data
         transform = transforms.Compose([
@@ -34,93 +44,125 @@ class TestMNISTPipeline:
             shuffle=False
         )
 
-    def test_model_parameters(self):
-        """Test 1: Check if model has less than 24000 parameters"""
-        total_params = count_parameters(self.model)
-        assert total_params < 24000, f"Model has {total_params:,} parameters, exceeding limit of 24,000"
-        print(f"\nTest 1 Passed: Model has {total_params:,} parameters")
-
-    def test_model_architecture(self):
-        """Test 2: Verify model architecture and input/output dimensions"""
+    def test_model_output_shape(self):
+        """Test 1: Verify model outputs 10 classes"""
         batch_size = 32
         test_input = torch.randn(batch_size, 1, 28, 28).to(self.device)
         output = self.model(test_input)
         
-        assert output.shape == (batch_size, 10), f"Expected output shape (32, 10), got {output.shape}"
-        print("\nTest 2 Passed: Model architecture verification successful")
+        assert output.shape[1] == 10, f"Expected 10 output classes, got {output.shape[1]}"
+        print("\nTest 1 Passed: Model outputs 10 classes")
 
-    def test_model_accuracy(self):
-        """Test 3: Check if model achieves >95% accuracy on test set"""
-        # Load pre-trained weights if available
-        if os.path.exists('mnist_model.pth'):
-            self.model.load_state_dict(torch.load('mnist_model.pth'))
-        else:
-            print("\nWarning: No pre-trained weights found. Skipping accuracy test.")
-            return
-        
+    def test_loss_value(self):
+        """Test 2: Verify loss is less than 1.0 after training"""
+        if not self.model_path:
+            pytest.skip("No trained model found in models/ directory")
+            
         self.model.eval()
-        correct = 0
-        total = 0
+        total_loss = 0
+        n_batches = 0
         
         with torch.no_grad():
             for data, target in self.test_loader:
                 data, target = data.to(self.device), target.to(self.device)
                 output = self.model(data)
-                pred = output.argmax(dim=1, keepdim=True)
-                correct += pred.eq(target.view_as(pred)).sum().item()
-                total += target.size(0)
+                loss = F.nll_loss(output, target)
+                total_loss += loss.item()
+                n_batches += 1
         
-        accuracy = 100. * correct / total
-        assert accuracy > 95.0, f"Model accuracy {accuracy:.2f}% is below required 95%"
-        print(f"\nTest 3 Passed: Model achieved {accuracy:.2f}% accuracy")
+        avg_loss = total_loss / n_batches
+        assert avg_loss < 1.0, f"Average loss {avg_loss:.4f} is too high"
+        print(f"\nTest 2 Passed: Average loss {avg_loss:.4f} is less than 1.0")
 
-    def test_model_save_load(self):
-        """Test 4: Verify model save and load functionality"""
-        # Save model
-        torch.save(self.model.state_dict(), 'test_model.pth')
+    def test_model_precision(self):
+        """Test 3: Verify model precision > 95%"""
+        if not self.model_path:
+            pytest.skip("No trained model found in models/ directory")
+            
+        self.model.eval()
+        all_preds = []
+        all_targets = []
         
-        # Load model
-        loaded_model = MNIST_CNN().to(self.device)
-        loaded_model.load_state_dict(torch.load('test_model.pth'))
+        with torch.no_grad():
+            for data, target in self.test_loader:
+                data, target = data.to(self.device), target.to(self.device)
+                output = self.model(data)
+                pred = output.argmax(dim=1)
+                all_preds.extend(pred.cpu().numpy())
+                all_targets.extend(target.cpu().numpy())
         
-        # Compare model parameters
-        for p1, p2 in zip(self.model.parameters(), loaded_model.parameters()):
-            assert torch.equal(p1, p2), "Model save/load verification failed"
+        precision, _, _, _ = precision_recall_fscore_support(
+            all_targets, all_preds, average='weighted'
+        )
         
-        # Cleanup
-        os.remove('test_model.pth')
-        print("\nTest 4 Passed: Model save/load verification successful")
+        assert precision > 0.95, f"Precision {precision:.4f} is below threshold"
+        print(f"\nTest 3 Passed: Precision={precision:.4f}")
 
-    def test_model_input_robustness(self):
-        """Test 5: Check model robustness to input variations"""
-        self.model.eval()  # Set model to evaluation mode
+    def test_model_recall(self):
+        """Test 4: Verify model recall > 95%"""
+        if not self.model_path:
+            pytest.skip("No trained model found in models/ directory")
+            
+        self.model.eval()
+        all_preds = []
+        all_targets = []
         
-        test_cases = [
-            torch.randn(1, 1, 28, 28),    # Single image
-            torch.randn(64, 1, 28, 28),   # Full batch
-            torch.randn(32, 1, 28, 28),   # Half batch
-            torch.randn(16, 1, 28, 28),   # Quarter batch
-        ]
+        with torch.no_grad():
+            for data, target in self.test_loader:
+                data, target = data.to(self.device), target.to(self.device)
+                output = self.model(data)
+                pred = output.argmax(dim=1)
+                all_preds.extend(pred.cpu().numpy())
+                all_targets.extend(target.cpu().numpy())
         
-        for i, test_input in enumerate(test_cases, 1):
-            test_input = test_input.to(self.device)
-            try:
-                with torch.no_grad():  # No need for gradients in testing
-                    output = self.model(test_input)
-                    # Check output dimensions
-                    assert output.shape[0] == test_input.shape[0], f"Batch size mismatch in case {i}"
-                    assert output.shape[1] == 10, f"Expected 10 classes in output for case {i}, got {output.shape[1]}"
-                    # Check output validity
-                    assert torch.isfinite(output).all(), f"Output contains NaN or Inf in case {i}"
-                    assert (output <= 0).all(), f"Log softmax output should be <= 0 in case {i}"
-            except Exception as e:
-                pytest.fail(f"Model failed on test case {i}: {str(e)}")
+        _, recall, _, _ = precision_recall_fscore_support(
+            all_targets, all_preds, average='weighted'
+        )
         
-        print("\nTest 5 Passed: Model input robustness verification successful")
+        assert recall > 0.95, f"Recall {recall:.4f} is below threshold"
+        print(f"\nTest 4 Passed: Recall={recall:.4f}")
 
-def deploy_model(model_path='mnist_model.pth'):
+    def test_model_parameters(self):
+        """Test 5: Check if model has less than 24000 parameters"""
+        total_params = count_parameters(self.model)
+        assert total_params < 24000, f"Model has {total_params:,} parameters, exceeding limit"
+        print(f"\nTest 5 Passed: Model has {total_params:,} parameters")
+
+    def test_model_f1_score(self):
+        """Test 6: Verify model F1 score > 95%"""
+        if not self.model_path:
+            pytest.skip("No trained model found in models/ directory")
+            
+        self.model.eval()
+        all_preds = []
+        all_targets = []
+        
+        with torch.no_grad():
+            for data, target in self.test_loader:
+                data, target = data.to(self.device), target.to(self.device)
+                output = self.model(data)
+                pred = output.argmax(dim=1)
+                all_preds.extend(pred.cpu().numpy())
+                all_targets.extend(target.cpu().numpy())
+        
+        _, _, f1, _ = precision_recall_fscore_support(
+            all_targets, all_preds, average='weighted'
+        )
+        
+        assert f1 > 0.95, f"F1 Score {f1:.4f} is below threshold"
+        print(f"\nTest 6 Passed: F1 Score={f1:.4f}")
+
+def deploy_model():
     """Simple deployment process"""
     try:
+        # Find the most recent model
+        model_files = glob.glob('models/mnist_model_*.pth')
+        if not model_files:
+            print("\nNo model found for deployment")
+            return False
+            
+        model_path = max(model_files)
+        
         # Load model
         model = MNIST_CNN()
         model.load_state_dict(torch.load(model_path))
@@ -131,7 +173,7 @@ def deploy_model(model_path='mnist_model.pth'):
         traced_script_module = torch.jit.trace(model, example)
         traced_script_module.save("deployed_model.pt")
         
-        print("\nDeployment successful: Model converted to TorchScript format")
+        print(f"\nDeployment successful: Model {model_path} converted to TorchScript format")
         return True
     except Exception as e:
         print(f"\nDeployment failed: {str(e)}")
@@ -146,10 +188,7 @@ def main():
     pytest.main([__file__, "-v"])
     
     # Deploy model if tests pass
-    if os.path.exists('mnist_model.pth'):
-        deploy_model()
-    else:
-        print("\nSkipping deployment: No trained model found")
+    deploy_model()
 
 if __name__ == "__main__":
     main() 

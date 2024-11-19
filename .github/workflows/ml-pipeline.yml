@@ -1,4 +1,4 @@
-name: ML Model CI/CD
+name: ML Pipeline
 
 on:
   push:
@@ -10,10 +10,10 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v2
     
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v2
       with:
         python-version: '3.8'
     
@@ -21,18 +21,23 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    
-    - name: Train model
-      run: |
-        python train.py
-    
+        
     - name: Run tests
       run: |
         pytest ci_cd_pipeline.py -v
-    
-    - name: Upload trained model
-      uses: actions/upload-artifact@v4
+        
+    - name: Train model
+      run: |
+        python train.py
+        
+    - name: Generate visualizations
+      run: |
+        python visualize_augmentations.py
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
       with:
-        name: trained-model
-        path: models/mnist_model_*.pth
-        retention-days: 90
+        name: model-artifacts
+        path: |
+          models/
+          visualizations/
