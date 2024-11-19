@@ -23,7 +23,8 @@ class TestMNISTPipeline:
         cls.model_path = max(model_files) if model_files else None
         
         if cls.model_path:
-            cls.model.load_state_dict(torch.load(cls.model_path))
+            # Load model with weights_only=True for security
+            cls.model.load_state_dict(torch.load(cls.model_path, weights_only=True))
         
         # Setup test data
         transform = transforms.Compose([
@@ -163,9 +164,9 @@ def deploy_model():
             
         model_path = max(model_files)
         
-        # Load model
+        # Load model with weights_only=True
         model = MNIST_CNN()
-        model.load_state_dict(torch.load(model_path))
+        model.load_state_dict(torch.load(model_path, weights_only=True))
         model.eval()
         
         # Save model in deployment format (TorchScript)
