@@ -14,7 +14,7 @@ This guide explains how to use and understand the lightweight CNN implementation
 
 ```bash
 pip install torch torchvision tqdm
-pip install pytest
+
 ```
 
 ## Model Architecture
